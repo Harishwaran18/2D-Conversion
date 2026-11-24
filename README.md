@@ -163,4 +163,7 @@ cutting anything a patient will wear or a clinician will rely on.
 
 ## Licence
 
-MIT.
+MIT — see [LICENSE](LICENSE).
+
+`archive/brainchop-partial/` holds unmodified upstream [BrainChop](https://github.com/neuroneural/brainchop)
+sources (also MIT) kept for reference only; they are not loaded by the app.
