@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Brain2DPrint — turn brain scans into 2D prints</title>
+    <meta
+      name="description"
+      content="Open DICOM, NIfTI or ordinary images in the browser and export print-ready 2D slices, vector outlines, PDF sheets and hollow 3D-print meshes. Nothing is uploaded."
+    />
+    <meta name="color-scheme" content="dark" />
+    <link rel="stylesheet" href="./assets/css/app.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1220'/%3E%3Cpath d='M9 23V9h6a4.5 4.5 0 0 1 0 9H9m0 0 6 5' stroke='%2358d2ff' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <a class="skip-link" href="#viewers">Skip to viewers</a>
+
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+            <rect width="32" height="32" rx="8" fill="#0e1726" />
+            <path
+              d="M9 23V9h6a4.5 4.5 0 0 1 0 9H9m0 0 6 5"
+              stroke="#58d2ff"
+              stroke-width="2.4"
+              fill="none"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <div class="brand__text">
+            <span class="brand__name">Brain2DPrint</span>
+            <span class="brand__tag">DICOM · NIfTI · image → 2D print</span>
+          </div>
+        </div>
+
+        <div class="topbar__actions">
+          <label class="btn btn--primary" for="file-input">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 14V4m0 0L6 8m4-4 4 4M4 15v1a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-1" /></svg>
+            Open scans
+          </label>
+          <input
+            id="file-input"
+            class="visually-hidden"
+            type="file"
+            multiple
+            accept=".dcm,.dicom,.ima,.zip,.nii,.nii.gz,.gz,image/png,image/jpeg,image/webp,image/bmp,image/gif"
+          />
+          <button class="btn" id="btn-demo" type="button">Demo brain</button>
+          <button class="btn btn--icon" id="btn-help" type="button" title="Help and shortcuts" aria-label="Help">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5" /><path d="M8 7.8a2 2 0 1 1 2.9 1.8c-.6.4-.9.8-.9 1.6" /><circle cx="10" cy="14" r=".9" fill="currentColor" stroke="none" /></svg>
+          </button>
+        </div>
+      </header>
+
+      <aside class="sidebar" id="sidebar">
+        <section class="panel" aria-labelledby="panel-source">
+          <h2 class="panel__title" id="panel-source">Source</h2>
+          <div class="source" id="source-info">
+            <p class="muted">No scan loaded yet.</p>
+          </div>
+          <label class="field" id="series-field" hidden>
+            <span>Series</span>
+            <select id="series-select"></select>
+          </label>
+        </section>
+
+        <section class="panel" aria-labelledby="panel-display">
+          <h2 class="panel__title" id="panel-display">Display</h2>
+          <div class="presets" role="group" aria-label="Window presets">
+            <button class="chip" data-preset="brain" type="button">Brain</button>
+            <button class="chip" data-preset="bone" type="button">Bone</button>
+            <button class="chip" data-preset="full" type="button">Full range</button>
+            <button class="chip" data-preset="auto" type="button">Auto</button>
+          </div>
+          <label class="field">
+            <span>Window centre <output id="out-center">—</output></span>
+            <input id="input-center" type="range" min="0" max="1000" step="1" value="500" disabled />
+          </label>
+          <label class="field">
+            <span>Window width <output id="out-width">—</output></span>
+            <input id="input-width" type="range" min="1" max="2000" step="1" value="1000" disabled />
+          </label>
+          <div class="field-row">
+            <label class="field field--tight">
+              <span>Colormap</span>
+              <select id="colormap-select">
+                <option value="gray">Grayscale</option>
+                <option value="bone">Bone</option>
+                <option value="hot">Hot</option>
+                <option value="turbo">Turbo</option>
+                <option value="viridis">Viridis</option>
+              </select>
+            </label>
+            <label class="field field--tight">
+              <span>Overlay <output id="out-overlay">45%</output></span>
+              <input id="input-overlay" type="range" min="0" max="100" step="1" value="45" />
+            </label>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="panel-segment">
+          <h2 class="panel__title" id="panel-segment">Segment</h2>
+          <div class="field-row">
+            <label class="field field--tight">
+              <span>Mode</span>
+              <select id="segment-mode">
+                <option value="auto">Auto (Otsu)</option>
+                <option value="manual">Manual threshold</option>
+              </select>
+            </label>
+            <label class="field field--tight">
+              <span>Threshold <output id="out-threshold">—</output></span>
+              <input id="input-threshold" type="range" min="-1000" max="4000" step="1" value="400" disabled />
+            </label>
+          </div>
+          <div class="checks">
+            <label class="check"><input id="chk-largest" type="checkbox" checked /> Keep largest region</label>
+            <label class="check"><input id="chk-fill" type="checkbox" checked /> Fill holes</label>
+            <label class="check"><input id="chk-overlay" type="checkbox" checked /> Show mask overlay</label>
+          </div>
+          <button class="btn btn--wide" id="btn-segment" type="button" disabled>Run segmentation</button>
+          <p class="hint" id="segment-status">Load a scan to enable segmentation.</p>
+        </section>
+
+        <section class="panel" aria-labelledby="panel-export">
+          <h2 class="panel__title" id="panel-export">2D export</h2>
+          <div class="field-row">
+            <label class="field field--tight">
+              <span>Axis</span>
+              <select id="export-axis">
+                <option value="axial">Axial</option>
+                <option value="coronal">Coronal</option>
+                <option value="sagittal">Sagittal</option>
+              </select>
+            </label>
+            <label class="field field--tight">
+              <span>Source</span>
+              <select id="export-source">
+                <option value="trace">Image trace</option>
+                <option value="mask">Segmentation</option>
+                <option value="model">Print model sections</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Trace level <output id="out-trace">—</output></span>
+            <input id="input-trace" type="range" min="-1000" max="4000" step="1" value="400" />
+          </label>
+
+          <div class="field-row">
+            <label class="field field--tight">
+              <span>From</span>
+              <input id="export-from" type="number" min="1" value="1" />
+            </label>
+            <label class="field field--tight">
+              <span>To</span>
+              <input id="export-to" type="number" min="1" value="1" />
+            </label>
+            <label class="field field--tight">
+              <span>Step</span>
+              <input id="export-step" type="number" min="1" value="1" />
+            </label>
+          </div>
+
+          <div class="field-row">
+            <label class="field field--tight">
+              <span>Page</span>
+              <select id="export-page">
+                <option value="A4">A4</option>
+                <option value="A5">A5</option>
+                <option value="A3">A3</option>
+                <option value="Letter">Letter</option>
+              </select>
+            </label>
+            <label class="field field--tight">
+              <span>Grid</span>
+              <select id="export-grid">
+                <option value="1">1 × 1</option>
+                <option value="2" selected>2 × 2</option>
+                <option value="3">3 × 3</option>
+                <option value="6">3 × 4</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="field-row">
+            <label class="field field--tight">
+              <span>Line (mm)</span>
+              <input id="export-line" type="number" min="0.05" max="2" step="0.05" value="0.3" />
+            </label>
+            <label class="field field--tight">
+              <span>Min island (mm)</span>
+              <input id="export-minlength" type="number" min="0" max="50" step="0.5" value="1.5" />
+            </label>
+          </div>
+          <label class="check"><input id="export-fill" type="checkbox" /> Fill outlines (even-odd)</label>
+
+          <div class="export-actions">
+            <button class="btn" id="btn-export-png" type="button" disabled>PNG slice</button>
+            <button class="btn" id="btn-export-svg" type="button" disabled>SVG</button>
+            <button class="btn" id="btn-export-pdf" type="button" disabled>PDF sheet</button>
+            <button class="btn" id="btn-export-zip" type="button" disabled>ZIP all</button>
+          </div>
+          <p class="hint" id="export-status">Contours are drawn at true 1:1 millimetre scale.</p>
+        </section>
+
+        <section class="panel" aria-labelledby="panel-print">
+          <h2 class="panel__title" id="panel-print">3D print</h2>
+          <p class="hint">Smooth, simplify and hollow the surface, then export STL or printable cross-sections.</p>
+          <button class="btn btn--wide" id="btn-mesh" type="button" disabled>Create mesh…</button>
+          <div class="stats" id="mesh-stats" hidden>
+            <div><span>Triangles</span><strong id="stat-triangles">—</strong></div>
+            <div><span>Vertices</span><strong id="stat-vertices">—</strong></div>
+            <div><span>Volume</span><strong id="stat-volume">—</strong></div>
+            <div><span>Wall</span><strong id="stat-wall">—</strong></div>
+          </div>
+          <div class="export-actions">
+            <button class="btn" id="btn-export-stl" type="button" disabled>STL</button>
+            <button class="btn" id="btn-export-sections" type="button" disabled>Sections SVG</button>
+          </div>
+        </section>
+      </aside>
+
+      <main class="viewers" id="viewers">
+        <div class="viewer" data-axis="axial">
+          <div class="viewer__head"><h2>Axial</h2><span class="viewer__meta" id="meta-axial"></span></div>
+          <div class="viewer__canvas"><canvas id="canvas-axial" aria-label="Axial slice"></canvas></div>
+          <input class="viewer__slider" id="slider-axial" type="range" min="1" max="1" value="1" aria-label="Axial slice" />
+        </div>
+        <div class="viewer" data-axis="coronal">
+          <div class="viewer__head"><h2>Coronal</h2><span class="viewer__meta" id="meta-coronal"></span></div>
+          <div class="viewer__canvas"><canvas id="canvas-coronal" aria-label="Coronal slice"></canvas></div>
+          <input class="viewer__slider" id="slider-coronal" type="range" min="1" max="1" value="1" aria-label="Coronal slice" />
+        </div>
+        <div class="viewer" data-axis="sagittal">
+          <div class="viewer__head"><h2>Sagittal</h2><span class="viewer__meta" id="meta-sagittal"></span></div>
+          <div class="viewer__canvas"><canvas id="canvas-sagittal" aria-label="Sagittal slice"></canvas></div>
+          <input class="viewer__slider" id="slider-sagittal" type="range" min="1" max="1" aria-label="Sagittal slice" />
+        </div>
+        <div class="viewer viewer--3d">
+          <div class="viewer__head">
+            <h2>Surface</h2>
+            <label class="spin"><input id="chk-spin" type="checkbox" checked /> Spin</label>
+          </div>
+          <div class="viewer__canvas"><canvas id="canvas-3d" aria-label="3D surface preview"></canvas></div>
+          <p class="viewer__hint">Drag to orbit · wheel to zoom</p>
+        </div>
+      </main>
+
+      <footer class="statusbar">
+        <span class="statusbar__message" id="status-message">Ready. Everything runs locally — no scan ever leaves this browser.</span>
+        <div class="statusbar__progress" aria-hidden="true"><span id="status-progress"></span></div>
+        <button class="btn btn--small btn--ghost" id="btn-clear" type="button">Clear</button>
+      </footer>
+    </div>
+
+    <div class="drop-overlay" id="drop-overlay" hidden>
+      <div class="drop-overlay__card">
+        <strong>Drop scans to load</strong>
+        <span>DICOM files, a ZIP of DICOMs, NIfTI (.nii / .nii.gz) or images</span>
+      </div>
+    </div>
+
+    <dialog class="dialog" id="mesh-dialog">
+      <form method="dialog" class="dialog__body" id="mesh-form">
+        <h2 class="dialog__title">Mesh preparation</h2>
+        <p class="hint">The surface is built from the current segmentation.</p>
+
+        <label class="field">
+          <span>Hollow</span>
+          <select id="mesh-hollow">
+            <option value="0">Solid (no cavity)</option>
+            <option value="1">1 mm</option>
+            <option value="2">2 mm</option>
+            <option value="3">3 mm</option>
+            <option value="4" selected>4 mm</option>
+            <option value="5">5 mm</option>
+            <option value="6">6 mm</option>
+            <option value="8">8 mm</option>
+            <option value="10">10 mm</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Smoothing <output id="out-smoothing">45%</output></span>
+          <input id="mesh-smoothing" type="range" min="0" max="100" step="1" value="45" />
+        </label>
+
+        <label class="field">
+          <span>Simplify percent (10…150)</span>
+          <input id="mesh-simplify" type="number" min="10" max="150" step="5" value="75" />
+        </label>
+
+        <div class="dialog__actions">
+          <button class="btn" value="cancel" type="submit" formnovalidate>Cancel</button>
+          <button class="btn btn--primary" id="btn-apply-mesh" value="apply" type="submit">Apply</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="dialog" id="help-dialog">
+      <form method="dialog" class="dialog__body">
+        <h2 class="dialog__title">How to use</h2>
+        <ol class="steps">
+          <li><strong>Open scans</strong> — DICOM files or a ZIP of them, NIfTI, or plain images (PNG/JPEG).</li>
+          <li><strong>Find the window</strong> — use the presets, or drag the centre/width sliders.</li>
+          <li><strong>Segment</strong> — Otsu is automatic; switch to manual to tune the threshold.</li>
+          <li><strong>Export 2D</strong> — trace outlines at true millimetre scale as SVG, PDF sheets or PNG.</li>
+          <li><strong>3D print</strong> — smooth, simplify and hollow, then save an STL or the sections.</li>
+        </ol>
+        <h3>Shortcuts</h3>
+        <dl class="shortcuts">
+          <div><dt>1 / 2 / 3</dt><dd>Focus axial / coronal / sagittal</dd></div>
+          <div><dt>↑ / ↓</dt><dd>Step through slices in the focused view</dd></div>
+          <div><dt>K</dt><dd>Run segmentation</dd></div>
+          <div><dt>M</dt><dd>Open mesh preparation</dd></div>
+          <div><dt>?</dt><dd>This help</dd></div>
+        </dl>
+        <p class="hint">
+          Privacy: decoding, segmentation and export all happen in this tab. No network requests, no uploads, no
+          analytics.
+        </p>
+        <div class="dialog__actions"><button class="btn btn--primary" value="close" type="submit">Close</button></div>
+      </form>
+    </dialog>
+
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+    <script type="module" src="./src/ui/app.js"></script>
+  </body>
+</html>
